@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+/**
+ * @title Zynxa Coin (ZYNXA)
+ * @dev ERC-20 Token with 50% supply time-locked for 1 year, using OpenZeppelin's Ownable.
+ * The owner can unlock the locked tokens after 1 year from deployment.
+ */
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract ZynxaCoin is ERC20, Ownable {
+    uint256 public constant TOTAL_SUPPLY = 21_000_000 * 10 ** 18;
+    uint256 public constant LOCKED_AMOUNT = TOTAL_SUPPLY / 2;
+    uint256 public immutable lockEndTime;
+    bool public lockedTokensClaimed = false;
+
+    constructor() ERC20("Zynxa Coin", "ZYNXA") {
+        // Mint 50% to owner immediately
+        _mint(msg.sender, TOTAL_SUPPLY - LOCKED_AMOUNT);
+        // Mint 50% to contract for locking
+        _mint(address(this), LOCKED_AMOUNT);
+        lockEndTime = block.timestamp + 365 days;
+    }
+
+    /**
+     * @dev Allows the owner to unlock the locked tokens after 1 year.
+     */
+    function unlockLockedTokens() external onlyOwner {
+        require(block.timestamp >= lockEndTime, "Tokens are still locked");
+        require(!lockedTokensClaimed, "Locked tokens already claimed");
+        lockedTokensClaimed = true;
+        _transfer(address(this), owner(), LOCKED_AMOUNT);
+    }
+}

@@ -1,0 +1,145 @@
+// Prisma Schema for ZYNX AI Assistant
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String         @id @default(cuid())
+  email                 String         @unique
+  passwordHash          String
+  phone                 String?
+  phoneVerified         Boolean        @default(false)
+  
+  // Trial management
+  trialStart            DateTime?
+  trialEnd              DateTime?
+  
+  // Subscription
+  subscriptionPlan      String?        // 'basic', 'pro', 'enterprise'
+  subscriptionStatus    String?        // 'active', 'canceled', 'past_due'
+  
+  // Security
+  deviceFingerprintHash String?
+  lastLoginAt           DateTime?
+  lastLoginIp           String?
+  
+  // Status
+  isActive              Boolean        @default(true)
+  isBanned              Boolean        @default(false)
+  bannedAt              DateTime?
+  bannedReason          String?
+  
+  // Metadata
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  
+  // Relations
+  messages              Message[]
+  subscriptions         Subscription[]
+  refreshTokens         RefreshToken[]
+  otpCodes              OtpCode[]
+  
+  @@index([email])
+  @@index([deviceFingerprintHash])
+  @@map("users")
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String   // 'user' or 'assistant'
+  content   String   @db.Text
+  response  String?  @db.Text
+  tokens    Int?     // Token count for billing
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, createdAt])
+  @@map("messages")
+}
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  userId               String
+  stripeCustomerId     String   @unique
+  stripeSubscriptionId String   @unique
+  stripePriceId        String
+  status               String   // 'active', 'canceled', 'past_due', 'trialing'
+  plan                 String   // 'basic', 'pro', 'enterprise'
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+  @@map("subscriptions")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  userId    String?
+  phone     String
+  code      String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([phone, code])
+  @@map("otp_codes")
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         String   @default("admin") // 'admin', 'superadmin'
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@map("admin_users")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String   // 'login', 'signup', 'chat', 'subscribe', etc.
+  resource  String?  // Resource affected
+  details   String?  @db.Text
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
